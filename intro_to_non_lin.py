@@ -30,6 +30,16 @@ class NonLinVisualizer:
         self.optimizer = optim.SGD(self.model.parameters(), lr=0.001)
         self.loss_fn = nn.MSELoss()
 
+        self.fns = {
+            'sin': np.sin,
+            'cos': np.cos,
+            'tanh': torch.tanh,
+            'sigmoid': torch.sigmoid,
+            'exp': np.exp,
+            '2x+1': lambda x: 2 * x + 1,
+            '': lambda x: x
+        }
+
         self.is_playing = False
         self.play_pause_button = None
         self.create_widgets()
@@ -64,12 +74,14 @@ class NonLinVisualizer:
         self.width = ttk.Combobox(param_frame, width=10)
         self.width['values'] = (8, 16, 32, 64, 128)
         self.width.grid(row=0, column=1)
+        self.width.set(64)
 
         ## Model Depth
         ttk.Label(param_frame, text="Model Depth").grid(row=1, column=0, padx=5, pady=5)
         self.depth = ttk.Combobox(param_frame, width=10)
         self.depth['values'] = (1, 2, 3)
         self.depth.grid(row=1, column=1)
+        self.depth.set(2)
 
         # Function to approximate
         fn_frame = ttk.LabelFrame(self.master, text="Function to Approximate")
@@ -78,8 +90,9 @@ class NonLinVisualizer:
         ## fn dropdown
         ttk.Label(fn_frame, text="Function").grid(row=0, column=0, padx=5, pady=5)
         self.function = ttk.Combobox(fn_frame, width=10)
-        self.function['values'] = ('sin', 'cos', 'exp')  # Example functions
+        self.function['values'] = tuple(self.fns.keys())
         self.function.grid(row=0, column=1)
+        self.function.set('sin')
 
         self.play_pause_button = ttk.Button(self.master, text="Play", command=self.toggle_play_pause)
         self.play_pause_button.grid(row=2, column=0, pady=5)
@@ -87,7 +100,6 @@ class NonLinVisualizer:
         self.width.bind('<<ComboboxSelected>>', lambda e: self.create_model())
         self.depth.bind('<<ComboboxSelected>>', lambda e: self.create_model())
         self.function.bind('<<ComboboxSelected>>', lambda e: self.update_plot())
-
 
     def setup_plot(self):
         self.fig, self.ax = plt.subplots(figsize=(4, 4))
@@ -97,8 +109,8 @@ class NonLinVisualizer:
         self.update_plot()
 
     def update_plot(self, event=None):
-        x = np.linspace(-10, 10, 100)
-        y_true = self.get_function()(x)
+        x = np.linspace(-5, 5, 1000)
+        y_true = self.get_function()(torch.tensor(x.reshape(-1, 1), dtype=torch.float32)).numpy()
 
         # Convert to PyTorch tensors
         x_tensor = torch.tensor(x.reshape(-1, 1), dtype=torch.float32)
@@ -118,12 +130,11 @@ class NonLinVisualizer:
 
     def get_function(self):
         selected_fn = self.function.get()
-        fns = {'sin': np.sin, 'cos': np.cos, 'exp': np.exp, '2x+1': lambda x: 2 * x + 1, '': lambda x: x}
-        return fns[selected_fn]
+        return self.fns[selected_fn]
 
     def grad_step(self):
-        x = np.linspace(-10, 10, 1000)
-        y_true = self.get_function()(x)
+        x = np.linspace(-5, 5, 1000)
+        y_true = self.get_function()(torch.tensor(x.reshape(-1, 1), dtype=torch.float32)).numpy()
 
         # Convert to PyTorch tensors
         x_tensor = torch.tensor(x.reshape(-1, 1), dtype=torch.float32)
