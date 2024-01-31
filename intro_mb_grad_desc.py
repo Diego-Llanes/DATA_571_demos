@@ -69,15 +69,15 @@ def main(args):
     ax2.plot(true_x, true_y, '*')
     ax2.set_title('Prediction Function')
 
+    def R_batch(m, b, batch_x, batch_y):
+        return (1/args.mb) * np.sum((batch_x * m + b - batch_y) ** 2)
+
     def update(val):
         nonlocal m, b, star, M, B, opt_star, true_star
         lr = s_lr.val
         batch_indices = np.random.choice(args.N, args.mb, replace=False)
         batch_x = true_x[batch_indices]
         batch_y = true_y[batch_indices]
-
-        def R_batch(m, b):
-            return (1/args.mb) * np.sum((batch_x * m + b - batch_y) ** 2)
 
         if args.loss == 'squared_error':
             grad_m = (2/args.mb) * np.sum((batch_x * m + b - batch_y) * batch_x)
@@ -90,29 +90,32 @@ def main(args):
 
         line_pred.set_ydata(pred_range * m + b)
         star.remove()
-        star = ax1.scatter([m], [b], [R(m, b)], color='b', s=50)
+        star = ax1.scatter([m], [b], [R(m, b)], color='b', s=50, label='Current')
+        # remakke m_bound and b_bound
+        m_bound = np.max(np.abs([true_m, optimal_m, m])) * 1.1
 
         # Reduce the number of polygons for performance
         M_coarse, B_coarse = np.meshgrid(np.linspace(-m_bound * 2, m_bound * 2, 20), np.linspace(-b_bound * 2, b_bound * 2, 20))
         
         Z_full = np.array([[R(m_, b_) for m_, b_ in zip(mr, br)] for mr, br in zip(M_coarse, B_coarse)])
-        Z_batch = np.array([[R_batch(m_, b_) for m_, b_ in zip(mr, br)] for mr, br in zip(M_coarse, B_coarse)])
+        Z_batch = np.array([[R_batch(m_, b_, batch_x, batch_y) for m_, b_ in zip(mr, br)] for mr, br in zip(M_coarse, B_coarse)])
         
         ax1.clear()
 
-        true_star = ax1.scatter([true_m], [true_b], [R(true_m, true_b)], color='r', s=50)
-        opt_star = ax1.scatter([optimal_m], [optimal_b], [R(optimal_m, optimal_b)], color='m', s=50)
+        true_star = ax1.scatter([true_m], [true_b], [R(true_m, true_b)], color='r', s=50, label='True')
+        opt_star = ax1.scatter([optimal_m], [optimal_b], [R(optimal_m, optimal_b)], color='m', s=50, label='Optimal')
 
         opt_mb = np.polyfit(batch_x, batch_y, 1)
         opt_mb_m = opt_mb[0]
         opt_mb_b = opt_mb[1]
-        opt_star = ax1.scatter([opt_mb_m], [opt_mb_b], [R(opt_mb_m, opt_mb_b)], color='g', s=50)
+        opt_star = ax1.scatter([opt_mb_m], [opt_mb_b], [R(opt_mb_m, opt_mb_b)], color='g', s=50, label='Batch')
 
         ax1.plot_surface(M_coarse, B_coarse, Z_full, color='lightblue', edgecolor='none', alpha=0.5)
         ax1.plot_surface(M_coarse, B_coarse, Z_batch, color='lightgreen', edgecolor='none', alpha=0.5)
         star = ax1.scatter([m], [b], [R(m, b)], color='b', s=50)
+        ax1.legend()
 
-        ax1.set_zlim(Z.min(), Z.max())  # Set fixed Z-axis range
+        ax1.set_zlim(Z.min(), Z.max())
 
         fig.canvas.draw_idle()
 
@@ -124,6 +127,10 @@ def main(args):
 
         true_y = true_x * true_m + true_b + np.random.normal(0, args.noise, args.N)
 
+        batch_indices = np.random.choice(args.N, args.mb, replace=False)
+        batch_x = true_x[batch_indices]
+        batch_y = true_y[batch_indices]
+
         optimal = np.polyfit(true_x, true_y, 1)
         optimal_m = optimal[0]
         optimal_b = optimal[1]
@@ -131,6 +138,7 @@ def main(args):
         m, b = initial_m, initial_b
 
         s_lr.set_val(0.01)
+
 
         ax2.clear()
         line_pred, = ax2.plot(pred_range, pred_range * m + b, '-k', label='Prediction')
@@ -141,13 +149,19 @@ def main(args):
         ax2.set_title('Prediction Function')
 
         Z = np.array([[R(m_, b_) for m_, b_ in zip(mr, br)] for mr, br in zip(M, B)])
+        Z_batch = np.array([[R_batch(m_, b_, batch_x, batch_y) for m_, b_ in zip(mr, br)] for mr, br in zip(M, B)])
         ax1.clear()
         ax1.set_xlim(-m_bound * 2, m_bound * 2)
         ax1.set_ylim(-b_bound * 2, b_bound * 2)
-        ax1.plot_surface(M, B, Z, edgecolor='none', alpha=0.5)
+        ax1.plot_surface(M, B, Z, color='lightblue',edgecolor='none', alpha=0.5)
+        ax1.plot_surface(M, B, Z_batch, color='lightgreen', edgecolor='none', alpha=0.5)
         star = ax1.scatter([m], [b], [R(m, b)], color='b', s=50, label='Current')
         true_star = ax1.scatter([true_m], [true_b], [R(true_m, true_b)], color='r', s=50, label='True')
         opt_star = ax1.scatter([optimal_m], [optimal_b], [R(optimal_m, optimal_b)], color='m', s=50, label='Optimal')
+        opt_mb = np.polyfit(batch_x, batch_y, 1)
+        opt_mb_m = opt_mb[0]
+        opt_mb_b = opt_mb[1]
+        opt_star = ax1.scatter([opt_mb_m], [opt_mb_b], [R(opt_mb_m, opt_mb_b)], color='g', s=50, label='Batch')
         ax1.legend()
 
         ax1.set_xlabel('m')
